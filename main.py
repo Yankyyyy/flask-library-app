@@ -1,14 +1,53 @@
 from flask import Flask, request, jsonify
 import mysql.connector
+from functools import wraps
+import jwt
 
 app = Flask(__name__)
 app.name = "Library Management"  # Set application name
 
+
+SECRET_KEY = "6379573186"
+
+@app.route('/login', methods=['POST'])
+def login():
+  data = request.get_json()
+  username = data.get('username')
+  password = data.get('password')
+  # Validate credentials 
+  if username == 'admin' and password == 'admin@123':
+    payload = {'username': username}
+    token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+    return jsonify({'token': token})
+  else:
+    return jsonify({'error': 'Invalid credentials'}), 401
+
+def token_required(func):
+  @wraps(func)
+  def decorated(*args, **kwargs):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+      return jsonify({'error': 'Missing or invalid token'}), 401
+
+    token = auth_header.split()[1]
+    
+    try:
+      payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+      return func(*args, **kwargs)
+    except:
+      return jsonify({'message' : 'Token is invalid !!'}), 401
+    
+  return decorated
+
+
+
+# Simple home just for checking error
 @app.route('/')
 def home():
    return "Library Management App"
 
-# Database connection details (replace with your credentials)
+
+# Database connection details
 config = {
     'host': 'localhost',
     'user': 'root',
@@ -25,7 +64,9 @@ def connect_to_database():
     print("Error connecting to database:", err)
     return None
 
+
 @app.route('/books', methods=['POST'])
+@token_required
 def add_book():
   """Adds a new book to the database."""
   # Get book details from request body
@@ -59,7 +100,9 @@ def add_book():
   connection.close()
   return jsonify({'message': 'Book added successfully!'}), 201
 
+
 @app.route('/books', methods=['GET'])
+@token_required
 def get_books():
   """Retrieves books from the database with optional filtering."""
   # Get query parameters for filtering
@@ -134,6 +177,7 @@ def get_books():
     # connection.close()
 
 @app.route('/books/book_by_id', methods=['GET', 'PUT', 'DELETE'])
+@token_required
 def book_by_id():
   """Handles requests for a specific book based on ID."""
   # Connect to database
@@ -212,6 +256,7 @@ def book_by_id():
 
 
 @app.route('/books/aggregate', methods=['GET'])
+@token_required
 def get_aggregate_data():
   """Retrieves aggregated data from the books table."""
   connection = connect_to_database()
