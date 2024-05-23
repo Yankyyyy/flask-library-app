@@ -264,14 +264,23 @@ def get_aggregate_data():
     return jsonify({'error': 'Database connection error'}), 500
   cursor = connection.cursor()
 
-  # Construct query for book count by genre
-  query = "SELECT genre, COUNT(*) AS count FROM books GROUP BY genre"
-  cursor.execute(query)
+  # Get book id from request body
+  data = request.get_json()
+  book_id = data.get('id')
+
+  # Construct query for recommended books by genre
+  sql = """SELECT b1.id AS current_book, b2.title AS recommended_book
+              FROM books AS b1
+              INNER JOIN books AS b2 ON b1.genre = b2.genre
+              WHERE b1.id != b2.id AND b1.id = %s;
+          """
+  
+  cursor.execute(sql, (book_id,))
   results = cursor.fetchall()
   connection.close()
 
   # Return aggregated data
-  return jsonify([{'genre': result[0], 'count': result[1]} for result in results])
+  return jsonify([result[1] for result in results])
 
 
 if __name__ == '__main__':
